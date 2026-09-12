@@ -1,0 +1,84 @@
+﻿import yfinance as yf
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
+# Get 3 years of historical data for Apple stock
+data = yf.download('AAPL', start='2023-01-01', end='2026-01-01')
+close_prices = data['Close'].squeeze()
+
+
+# Calculate the log returns
+log_returns = np.log(close_prices / close_prices.shift(1))
+
+
+# Calculate drift
+drift = log_returns.mean()
+# either calculate volatility or have the user enter it
+if input('Enter YES if you want to manually input volatility. Otherwise, it will be estimated from historical data: ') == 'YES':
+    volatility = float(input('Please enter volatility: '))
+else:
+    volatility = log_returns.std()
+
+
+# we want to run the simulation for 252 days into the future
+t_intervals = int(input('Enter number of days the simulations will run for: '))
+
+
+# we want to simulate a number of future paths
+number_of_simulations = int(input('Enter number of simulations: '))
+
+
+# get the random element with a standard normal distribution
+random_shocks = np.random.normal(0, 1, (t_intervals, number_of_simulations))
+
+
+#Get a array ready for the price list
+price_list = np.zeros_like(random_shocks)
+price_list[0] = close_prices.iloc[-1]
+
+
+#calculate the daily growth factor matrix
+daily_multipliers = np.zeros_like(random_shocks)
+daily_multipliers = np.exp(drift + volatility * random_shocks)
+
+
+# Loop through days to recursively fill out each path
+for t in range(1, t_intervals):
+    price_list[t] = price_list[t-1] * daily_multipliers[t]
+
+
+# plot the first ten simulations
+plt.figure(figsize=(10, 6))
+plt.plot(price_list[:, :10])
+plt.title('Monte Carlo simulation of AAPL stock prices (showing first ten simulations)')
+plt.xlabel('Trading days since 01-01-2026')
+plt.ylabel('Price ($)')
+
+
+# plot a histogram for the final prices
+end_prices = price_list[t_intervals - 1, :]
+plt.figure(figsize=(10, 6))
+plt.hist(end_prices)
+plt.title('Price of AAPL stock after ' + str(t_intervals) + ' trading days from ' + str(number_of_simulations) + ' simulations')
+plt.xlabel('Price ($)')
+plt.ylabel('Frequency')
+
+
+# Calculate some statistics
+median_outcome = np.median(end_prices)
+mean_outcome = np.mean(end_prices)
+variance_outcome = np.var(end_prices)
+
+
+#Print results
+print('\n=== RESULTS ===')
+print('There were: ' + str(number_of_simulations) + ' simulations')
+print('The simulations ran for: ' + str(t_intervals) + ' trading days')
+print('Volatility was: ' + str(round(volatility, 5)) + ' (to 5 d.p.)')
+print('Drift was: ' + str(round(drift, 5)) + ' (to 5 d.p.)')
+print('\n=== SUMMARY STATISTICS ===')
+print('Median = $' + str(round(median_outcome, 2)))
+print('Mean = $' + str(round(mean_outcome, 2)))
+print('Standard deviation = $' + str(round(np.sqrt(variance_outcome), 2)))
